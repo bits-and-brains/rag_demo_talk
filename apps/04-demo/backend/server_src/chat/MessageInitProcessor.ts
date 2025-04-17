@@ -46,7 +46,7 @@ export class MessageInitProcessor {
                 this.messageHistory.addMessage('assistant', summary);
 
                 // Trigger action loop asynchronously
-                this.triggerActionLoop(actionsWithData, userMessage);
+                this.triggerActionLoop(actionsWithData);
 
                 return summary;
             } else {

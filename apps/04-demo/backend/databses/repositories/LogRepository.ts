@@ -57,6 +57,98 @@ export class LogRepository {
     }
   }
 
+  /**
+   * Find logs with filters and pagination
+   * @param params Parameters including pagination and filters
+   * @returns Promise<PaginatedResult<Log>> Paginated filtered logs
+   */
+  async findFiltered(params: PaginationParams & { filters?: any }): Promise<PaginatedResult<Log>> {
+    const connection = await this.pool.getConnection();
+    const offset = calculateOffset(params);
+    
+    try {
+      // Build the WHERE clause based on filters
+      let whereClause = '';
+      const queryParams: any[] = [];
+      
+      if (params.filters) {
+        const conditions: string[] = [];
+        
+        // Handle severity filters
+        if (params.filters.severity) {
+          if (params.filters.severity.include && params.filters.severity.include.length > 0) {
+            const placeholders = params.filters.severity.include.map(() => '?').join(', ');
+            conditions.push(`severity IN (${placeholders})`);
+            queryParams.push(...params.filters.severity.include);
+          }
+          
+          if (params.filters.severity.exclude && params.filters.severity.exclude.length > 0) {
+            const placeholders = params.filters.severity.exclude.map(() => '?').join(', ');
+            conditions.push(`severity NOT IN (${placeholders})`);
+            queryParams.push(...params.filters.severity.exclude);
+          }
+        }
+        
+        // Handle logger filter
+        if (params.filters.logger) {
+          conditions.push('logger = ?');
+          queryParams.push(params.filters.logger);
+        }
+        
+        // Handle created_at filters
+        if (params.filters.created_at) {
+          if (params.filters.created_at.before) {
+            conditions.push('created_at < ?');
+            queryParams.push(params.filters.created_at.before);
+          }
+          
+          if (params.filters.created_at.after) {
+            conditions.push('created_at > ?');
+            queryParams.push(params.filters.created_at.after);
+          }
+          
+          if (params.filters.created_at.range) {
+            conditions.push('created_at BETWEEN ? AND ?');
+            queryParams.push(params.filters.created_at.range.start, params.filters.created_at.range.end);
+          }
+        }
+        
+        if (conditions.length > 0) {
+          whereClause = `WHERE ${conditions.join(' AND ')}`;
+        }
+      }
+      
+      // Get total count with filters
+      let countQuery = 'SELECT COUNT(*) as count FROM logs';
+      if (whereClause) {
+        countQuery += ` ${whereClause}`;
+      }
+      
+      const [countResult] = await connection.query(countQuery, queryParams);
+      const totalItems = (countResult as any[])[0].count;
+      
+      // Get paginated results with filters
+      let query = 'SELECT * FROM logs';
+      if (whereClause) {
+        query += ` ${whereClause}`;
+      }
+      query += ' ORDER BY created_at DESC LIMIT ? OFFSET ?';
+      
+      const [rows] = await connection.query(query, [...queryParams, params.pageSize, offset]);
+      
+      const logs = (rows as any[]).map(row => ({
+        id: row.id,
+        content: row.content,
+        logger: row.logger,
+        severity: this.validateSeverity(row.severity),
+        created_at: new Date(row.created_at)
+      }));
+      
+      return createPaginatedResult(logs, params, totalItems);
+    } finally {
+      connection.release();
+    }
+  }
 
   /**
    * Validates that the severity is a valid LogSeverity
