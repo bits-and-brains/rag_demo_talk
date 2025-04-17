@@ -1,0 +1,16 @@
+
+.idea/
+**/.env
+**/vendor
+**/node_modules
+**/dist
+**/build
+**/coverage
+**/logs
+**/tmp
+**/.pnpm-store
+**/__pycache__
+
+apps/01-simple-chat/backend/python/src/services/llm/__pycache__/
+
+apps/01-simple-chat/backend/golang/main

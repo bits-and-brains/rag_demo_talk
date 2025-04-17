@@ -1,0 +1,42 @@
+Add prompt examples in files
+
+Add links in docs:
+- List of frameworks and libraries
+- List of models and providers
+- List of tools:
+  - data processing
+  - app testing
+  - security
+- List of API/SaaS
+
+Explain in docs
+- Language support
+- Context size management
+- keep track conversation
+- why use different models and providers
+- vector search and mix data format explained
+- how to manage different data: file/image/video/audio/text/code/db... languages... cut contect and summarize
+- how to build query with model input
+- image and models
+- audio and models
+- video and models
+- prompt management: versioning, testing, monitoring
+- cost management
+- validation and guardrails
+- when to use build in DB AI to process response like pgai or weaviate questions AND WHEN NOT TO
+  yes on simple questions and chats
+  no on complex questions, when prompt quality is important and we need to customize prompt
+
+
+TO CODE:
+- add golang 03 app
+- add php 03 app
+- add history for app 01
+- add token estimation in app 01
+- change one php example to symfony
+- change one python to django
+- clean code after vibecoding
+- test in fresh instance to ensure everything can be build from scratch and people need only docker and make
+- adjust redame files
+
+

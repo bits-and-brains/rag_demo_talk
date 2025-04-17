@@ -1,0 +1,34 @@
+``
+cd backend
+bun install
+bun server
+``
+
+``
+cd backend
+bun install
+bun cmd test
+``
+
+``
+cd frontend
+bun install
+bun dev
+``
+``
+# Get a copy of the latest Langfuse repository
+git clone https://github.com/langfuse/langfuse.git
+cd langfuse
+
+# Run the langfuse docker compose
+docker compose up
+``
+Langfuse available at: http://localhost:3000
+
+user test@test.com
+
+password test12345!
+
+We must register new user
+
+

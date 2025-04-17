@@ -1,0 +1,84 @@
+version: '3.8'
+
+services:
+  # Frontend service
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./frontend:/app
+    environment:
+      - VITE_PHP_API_URL=http://localhost:8001
+      - VITE_NODE_API_URL=http://localhost:8002
+      - VITE_PYTHON_API_URL=http://localhost:8003
+      - VITE_GOLANG_API_URL=http://localhost:8004
+    networks:
+      - app-network
+
+  # PHP backend
+  backend-php:
+    build:
+      context: ./backend/php
+      dockerfile: Dockerfile
+    ports:
+      - "8001:8000"
+    volumes:
+      - ./backend/php:/var/www
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - app-network
+
+  # Node.js backend
+  # Note: If you encounter Docker connectivity issues, you can run the Node.js backend locally:
+  # cd backend/nodejs && npm install && npm start
+  backend-nodejs:
+    build:
+      context: ./backend/nodejs
+      dockerfile: Dockerfile
+    ports:
+      - "8002:8002"
+    volumes:
+      - ./backend/nodejs:/app
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
+    networks:
+      - app-network
+
+  # Python backend
+  backend-python:
+    build:
+      context: ./backend/python
+      dockerfile: Dockerfile
+    ports:
+      - "8003:8003"
+    volumes:
+      - ./backend/python:/app
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - app-network
+
+  # Golang backend
+  backend-golang:
+    build:
+      context: ./backend/golang
+      dockerfile: Dockerfile
+    ports:
+      - "8004:8004"
+    volumes:
+      - ./backend/golang:/app
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    driver: bridge

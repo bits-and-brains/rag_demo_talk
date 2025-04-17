@@ -1,0 +1,94 @@
+version: '3.8'
+
+services:
+  # Frontend service
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "3001:3001"
+    volumes:
+      - ./frontend:/app
+    environment:
+      - VITE_PHP_API_URL=http://localhost:8005
+      - VITE_NODE_API_URL=http://localhost:8006
+      - VITE_PYTHON_API_URL=http://localhost:8007
+      - VITE_GOLANG_API_URL=http://localhost:8008
+    networks:
+      - app-network
+
+  # PHP backend
+  backend-php:
+    build:
+      context: ./backend/php
+      dockerfile: Dockerfile
+    ports:
+      - "8005:8005"
+    volumes:
+      - ./backend/php:/var/www
+      - ./data:/data
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - app-network
+
+  # Node.js backend
+  # Note: If you encounter Docker connectivity issues, you can run the Node.js backend locally:
+  # cd backend/nodejs && npm install && npm start
+  backend-nodejs:
+    build:
+      context: ./backend/nodejs
+      dockerfile: Dockerfile
+    ports:
+      - "8006:8006"
+    volumes:
+      - ./backend/nodejs:/app
+      - ./data:/data
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
+    networks:
+      - app-network
+
+  # Python backend
+  backend-python:
+    build:
+      context: ./backend/python
+      dockerfile: Dockerfile
+    ports:
+      - "8007:8007"
+    volumes:
+      - ./backend/python:/app
+      - ./data:/data
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - app-network
+
+  # Golang backend
+  backend-golang:
+    build:
+      context: ./backend/golang
+      dockerfile: Dockerfile
+    ports:
+      - "8008:8008"
+    volumes:
+      - ./backend/golang:/app
+      - ./data:/data
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    driver: bridge
