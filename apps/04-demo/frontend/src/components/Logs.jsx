@@ -20,6 +20,7 @@ import SmartToyIcon from '@mui/icons-material/SmartToy';
 import SearchIcon from '@mui/icons-material/Search';
 import SettingsIcon from '@mui/icons-material/Settings';
 import PsychologyIcon from '@mui/icons-material/Psychology';
+import SecurityIcon from '@mui/icons-material/Security';
 
 const PAGE_SIZE_OPTIONS = [5, 10, 20, 50];
 
@@ -31,6 +32,8 @@ const getLoggerIcon = (logger) => {
       return <SettingsIcon />;
     case 'test':
       return <SearchIcon />;
+    case 'security':
+      return <SecurityIcon />;
     default:
       return <PsychologyIcon />;
   }

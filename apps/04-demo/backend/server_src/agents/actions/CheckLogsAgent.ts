@@ -47,7 +47,12 @@ export class CheckLogsAgent extends Agent {
             
             // Step 3: Get logs from the repository
             this.logs = await this.fetchLogs(validatedParams);
-            
+            // Check if logs array is empty
+            if (this.logs.length === 0) {
+                this.response = "I'm very sorry but I can't find any logs connected with your question.";
+                this.sendResponse(this.response);
+                return;
+            }
             // Step 4: Generate a response using Gemini
             this.response = await this.generateResponse(userMessage, this.logs);
             
@@ -91,7 +96,7 @@ export class CheckLogsAgent extends Agent {
 You are a log analysis assistant. Your task is to analyze the user's question and determine which log fields should be used for filtering.
 Available fields for filtering are:
 - severity: Can be "info", "warning", "error", or "debug"
-- logger: The name of the logger
+- logger: The name of the logger, currently available loggers are: security, ai, test, process
 - created_at: Timestamp of when the log was created
 
 For each field, determine if it should be used as a filter and what values to use:
@@ -100,6 +105,9 @@ For each field, determine if it should be used as a filter and what values to us
 - For created_at: Specify if it should be before, after, or within a range of dates
 
 IMPORTANT: You MUST respond with ONLY a valid JSON object. Do not include any explanatory text before or after the JSON.
+
+IMPORTANT TODAY IS: ${new Date().toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })}   CURRENT TIME IS: ${new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+
 The JSON must follow this exact structure:
 {
   "filters": {
@@ -263,6 +271,14 @@ Only include fields that should be used as filters. If a field should not be use
      */
     private async generateResponse(userMessage: string, logs: Log[]): Promise<string> {
         try {
+            // Filter logs before sending to LLM
+            this.filterBeforeLLM(logs);
+            
+            // Check if all logs were filtered out (security logs only)
+            if (logs.length === 0) {
+                return "Och! They got me! They know I'm your spy and they blocked me from getting security logs";
+            }
+            
             // Convert logs to a string representation
             const logsString = JSON.stringify(logs, null, 2);
             
@@ -280,11 +296,10 @@ Analyze the logs and provide a helpful, concise answer to the user's question.
 If there are no logs that match the criteria, inform the user.
 If there are errors or issues in the logs, highlight them.
 
-IMPORTANT: Provide a clear, concise, and helpful response. Focus on answering the user's question directly.
-`;
+IMPORTANT: Provide a clear, concise, and helpful response. Focus on answering the user's question directly.`;
 
             // Use Gemini to generate the response
-            const response = await this.geminiProvider.getCompletion([
+            let response = await this.geminiProvider.getCompletion([
                 { role: 'system', content: systemPrompt },
                 { role: 'user', content: `User question: ${userMessage}\n\nLogs:\n${logsString}` }
             ], {
@@ -292,6 +307,9 @@ IMPORTANT: Provide a clear, concise, and helpful response. Focus on answering th
                 temperature: 0.7,
                 maxTokens: 1000
             });
+            
+            // Filter response after receiving from LLM
+            response = await this.filterAfterLLM(response);
             
             console.log('Generated response using Gemini');
             return response;
@@ -307,6 +325,59 @@ IMPORTANT: Provide a clear, concise, and helpful response. Focus on answering th
      */
     public getLogs(): Log[] {
         return this.logs;
+    }
+
+    /**
+     * Filter logs before sending to LLM to remove security-related logs
+     * @param logs Array of logs to filter
+     */
+    public filterBeforeLLM(logs: Log[]): void {
+        // Filter out security logs
+        const filteredLogs = logs.filter(log => log.logger !== 'security');
+        
+        // Clear the original array and add filtered logs
+        logs.length = 0;
+        logs.push(...filteredLogs);
+    }
+
+    /**
+     * Filter response after receiving from LLM to replace sensitive information
+     * @param response The response from LLM
+     * @returns Filtered response with sensitive information replaced
+     */
+    public async filterAfterLLM(response: string): Promise<string> {
+        try {
+            const systemPrompt = `
+You are a privacy protection assistant. Your task is to replace all personal names in the text with "<HIDDEN>".
+
+IMPORTANT RULES:
+1. ONLY replace personal names with "<HIDDEN>"
+2. DO NOT add anything else to the text
+3. DO NOT change anything else in the text
+4. DO NOT remove anything else from the text
+5. DO NOT add any explanations or comments
+6. Return ONLY the modified text with names replaced
+
+Examples:
+- "John Smith reported an error" → "<HIDDEN> reported an error"
+- "User Alice Johnson logged in" → "User <HIDDEN> logged in"
+- "Contact support at support@example.com" → "Contact support at support@example.com" (email addresses are not names)
+`;
+
+            const filteredResponse = await this.geminiProvider.getCompletion([
+                { role: 'system', content: systemPrompt },
+                { role: 'user', content: response }
+            ], {
+                model: process.env.GEMINI_MODEL || "gemini-pro",
+                temperature: 0.1,
+                maxTokens: 1000
+            });
+            
+            return filteredResponse;
+        } catch (error) {
+            console.error('Error filtering response:', error);
+            return response; // Return original response if filtering fails
+        }
     }
 
     /**
