@@ -16,7 +16,7 @@ export abstract class Agent {
      * Sends a response message back to the user via WebSocket and saves it to the database
      * @param response The response message to send
      */
-    protected async sendResponse(response: string): Promise<void> {
+    protected async sendResponse(response: string, sessionId: string): Promise<void> {
         const message = {
             type: 'server_message',
             content: response,
@@ -29,7 +29,8 @@ export abstract class Agent {
         // Save the message to the database
         await this.messageRepository.insertMessage(
             response,
-            'assistant' as MessageAuthor
+            'assistant' as MessageAuthor,
+            sessionId
         );
     }
 } 

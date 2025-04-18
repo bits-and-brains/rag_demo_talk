@@ -2,15 +2,15 @@ import { Agent } from '../Agent';
 import { ActionDataItem } from '../AgentManager';
 import { LogRepository } from '../../../databses/repositories/LogRepository';
 import { Log, LogSeverity } from '../../../databses/models/Log';
-import { GeminiProvider } from '../../llm/gemini/GeminiProvider';
+import { LLMProviderFactory } from '../../llm/LLMProviderFactory';
 import { PromptTemplateService } from '../../chat/PromptTemplateService';
 import * as dotenv from 'dotenv';
-
+import { v4 as uuidv4 } from 'uuid';
 dotenv.config();
 
 export class CheckLogsAgent extends Agent {
     private logRepository: LogRepository;
-    private geminiProvider: GeminiProvider;
+    private llmProvider;
     private promptTemplateService: PromptTemplateService;
     private logs: Log[] = [];
     private response: string = '';
@@ -19,7 +19,8 @@ export class CheckLogsAgent extends Agent {
     constructor() {
         super();
         this.logRepository = new LogRepository();
-        this.geminiProvider = new GeminiProvider();
+        const factory = LLMProviderFactory.getInstance();
+        this.llmProvider = factory.getProvider('gemini');
         this.promptTemplateService = PromptTemplateService.getInstance();
     }
 
@@ -30,6 +31,7 @@ export class CheckLogsAgent extends Agent {
             console.log('No data provided for log checking');
             return;
         }
+        const sessionId = this.extractSessionId(data);
 
         try {
             // Extract the user message from the data
@@ -40,7 +42,7 @@ export class CheckLogsAgent extends Agent {
             }
 
             // Step 1: Ask AI to define filter fields based on the user message
-            const filterParams = await this.defineLogFilters(userMessage);
+            const filterParams = await this.defineLogFilters(userMessage, sessionId);
             
             // Step 2: Validate and prepare parameters for LogRepository
             const validatedParams = this.validateAndPrepareParams(filterParams);
@@ -50,21 +52,21 @@ export class CheckLogsAgent extends Agent {
             // Check if logs array is empty
             if (this.logs.length === 0) {
                 this.response = "I'm very sorry but I can't find any logs connected with your question.";
-                this.sendResponse(this.response);
+                this.sendResponse(this.response, sessionId);
                 return;
             }
             // Step 4: Generate a response using Gemini
-            this.response = await this.generateResponse(userMessage, this.logs);
+            this.response = await this.generateResponse(userMessage, this.logs, sessionId);
             
             // Send the response back to the user
-            this.sendResponse(this.response);
+            this.sendResponse(this.response, sessionId);
         } catch (error) {
             console.error('Error checking logs:', error);
             this.error = error instanceof Error ? error.message : 'Unknown error occurred';
             this.response = "I encountered an error while checking the logs.";
             
             // Send the error response back to the user
-            this.sendResponse(this.response);
+            this.sendResponse(this.response, sessionId);
         }
     }
 
@@ -84,12 +86,20 @@ export class CheckLogsAgent extends Agent {
         return userMessage;
     }
 
+    private extractSessionId(data: ActionDataItem[]): string {
+        const sessionIdItem = data.find(item => item.name === 'session_id');
+        if (!sessionIdItem) {
+            return uuidv4();
+        }
+        return String(sessionIdItem.value);
+    }
+
     /**
      * Define log filters based on the user message using AI
      * @param userMessage The user's message
      * @returns Object containing filter parameters
      */
-    private async defineLogFilters(userMessage: string): Promise<any> {
+    private async defineLogFilters(userMessage: string, sessionId: string): Promise<any> {
         try {
             // Create a system prompt for the AI to define log filters
             const systemPrompt = `
@@ -136,13 +146,14 @@ Only include fields that should be used as filters. If a field should not be use
 `;
 
             // Use Gemini to generate the filter parameters
-            const response = await this.geminiProvider.getCompletion([
+            const response = await this.llmProvider.getCompletion([
                 { role: 'system', content: systemPrompt },
                 { role: 'user', content: userMessage }
             ], {
                 model: process.env.GEMINI_MODEL || "gemini-pro",
                 temperature: 0.2,
-                maxTokens: 1000
+                maxTokens: 1000,
+                sessionId: sessionId
             });
 
             console.log(response);
@@ -269,7 +280,7 @@ Only include fields that should be used as filters. If a field should not be use
      * @param logs Array of logs
      * @returns A response generated by Gemini
      */
-    private async generateResponse(userMessage: string, logs: Log[]): Promise<string> {
+    private async generateResponse(userMessage: string, logs: Log[], sessionId: string): Promise<string> {
         try {
             // Filter logs before sending to LLM
             this.filterBeforeLLM(logs);
@@ -299,17 +310,18 @@ If there are errors or issues in the logs, highlight them.
 IMPORTANT: Provide a clear, concise, and helpful response. Focus on answering the user's question directly.`;
 
             // Use Gemini to generate the response
-            let response = await this.geminiProvider.getCompletion([
+            let response = await this.llmProvider.getCompletion([
                 { role: 'system', content: systemPrompt },
                 { role: 'user', content: `User question: ${userMessage}\n\nLogs:\n${logsString}` }
             ], {
                 model: process.env.GEMINI_MODEL || "gemini-pro",
                 temperature: 0.7,
-                maxTokens: 1000
+                maxTokens: 1000,
+                sessionId: sessionId
             });
             
             // Filter response after receiving from LLM
-            response = await this.filterAfterLLM(response);
+            response = await this.filterAfterLLM(response, sessionId);
             
             console.log('Generated response using Gemini');
             return response;
@@ -345,7 +357,7 @@ IMPORTANT: Provide a clear, concise, and helpful response. Focus on answering th
      * @param response The response from LLM
      * @returns Filtered response with sensitive information replaced
      */
-    public async filterAfterLLM(response: string): Promise<string> {
+    public async filterAfterLLM(response: string, sessionId: string): Promise<string> {
         try {
             const systemPrompt = `
 You are a privacy protection assistant. Your task is to replace all personal names in the text with "<HIDDEN>".
@@ -364,13 +376,14 @@ Examples:
 - "Contact support at support@example.com" → "Contact support at support@example.com" (email addresses are not names)
 `;
 
-            const filteredResponse = await this.geminiProvider.getCompletion([
+            const filteredResponse = await this.llmProvider.getCompletion([
                 { role: 'system', content: systemPrompt },
                 { role: 'user', content: response }
             ], {
                 model: process.env.GEMINI_MODEL || "gemini-pro",
                 temperature: 0.1,
-                maxTokens: 1000
+                maxTokens: 1000,
+                sessionId: sessionId
             });
             
             return filteredResponse;

@@ -24,14 +24,17 @@ export class ChatRequestHandler {
                 });
             }
 
-            // Save user message
-            const userMessage = await this.messageRepository.insertMessage(message, 'user');
+            // Generate a new session ID if not provided
+            const currentSessionId = requestId;
+
+            // Save user message with session ID
+            const userMessage = await this.messageRepository.insertMessage(message, 'user', currentSessionId);
 
             // Process message with OpenAI
-            const assistantResponse = await this.messageProcessor.processMessage(message);
+            const assistantResponse = await this.messageProcessor.processMessage(message, currentSessionId);
 
-            // Save assistant response
-            const assistantMessage = await this.messageRepository.insertMessage(assistantResponse, 'assistant');
+            // Save assistant response with session ID
+            const assistantMessage = await this.messageRepository.insertMessage(assistantResponse, 'assistant', currentSessionId);
 
             // Send response back
             res.json({

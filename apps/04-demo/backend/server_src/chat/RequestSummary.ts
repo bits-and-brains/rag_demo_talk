@@ -13,7 +13,7 @@ export class RequestSummary {
         this.promptTemplateService = PromptTemplateService.getInstance();
     }
 
-    async generateSummary(userMessage: string, actions: AcceptedActionType[]): Promise<string> {
+    async generateSummary(userMessage: string, actions: AcceptedActionType[], sessionId?: string): Promise<string> {
         try {
             const systemPrompt = await this.promptTemplateService.getCompiledPrompt('action summary', [
                 { name: 'selected_actions', value: actions }
@@ -25,7 +25,8 @@ export class RequestSummary {
             ];
 
             return await this.llmProvider.getCompletion(messages, {
-                model: 'gemini-1.5-pro'
+                model: 'gemini-1.5-pro',
+                sessionId: sessionId
             });
         } catch (error) {
             console.error('Error generating summary:', error);

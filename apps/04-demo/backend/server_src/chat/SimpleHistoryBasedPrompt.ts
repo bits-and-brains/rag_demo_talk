@@ -14,7 +14,7 @@ Use the conversation history to maintain context and provide more relevant respo
         this.messageRepository = new MessageRepository();
     }
 
-    async generateResponse(userMessage: string): Promise<string> {
+    async generateResponse(userMessage: string, sessionId?: string): Promise<string> {
         try {
             // Get all messages from database
             const dbMessages = await this.messageRepository.getAllMessages();
@@ -29,7 +29,8 @@ Use the conversation history to maintain context and provide more relevant respo
             ];
 
             const response = await this.llmProvider.getCompletion(messages, {
-                model: 'gemini-1.5-pro'
+                model: 'gemini-1.5-pro',
+                sessionId // Pass session ID to Langfuse through the provider
             });
 
             return response;

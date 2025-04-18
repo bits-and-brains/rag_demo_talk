@@ -39,7 +39,7 @@ export class ActionIdentifier {
         };
     }
 
-    async identifyActions(userMessage: string): Promise<ActionIdentification> {
+    async identifyActions(userMessage: string, sessionId?: string): Promise<ActionIdentification> {
         try {
             const actionsList = AgentManager.getActionsList();
             const systemPrompt = await this.promptTemplateService.getCompiledPrompt('action identification', [
@@ -52,7 +52,8 @@ export class ActionIdentifier {
             ];
 
             const response = await this.llmProvider.getCompletion(messages, {
-                model: 'gemini-1.5-pro'
+                model: 'gemini-1.5-pro',
+                sessionId: sessionId
             });
             // Clean the response by removing any backticks and "json" markers
             const cleanedResponse = response.replace(/```json\n?|\n?```/g, '').trim();
